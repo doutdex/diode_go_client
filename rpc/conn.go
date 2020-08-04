@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"net"
-	"sync"
 	"time"
 
 	"github.com/diodechain/diode_go_client/config"
@@ -27,7 +26,7 @@ type ConnectedDevice struct {
 type DeviceConn struct {
 	Conn       net.Conn
 	closed     bool
-	mx         sync.Mutex
+	mx         SpinLock
 	bufferSize int
 
 	// E2E

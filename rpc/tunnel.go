@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
 	"time"
 )
 
@@ -95,7 +94,7 @@ type Tunnel struct {
 	readDeadline  time.Time
 	writeDeadline time.Time
 	closed        bool
-	mx            sync.Mutex
+	mx            SpinLock
 }
 
 // Closed returns the Tunnel was closed

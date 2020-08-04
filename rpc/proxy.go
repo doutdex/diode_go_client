@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/diodechain/diode_go_client/config"
@@ -44,7 +43,7 @@ type ProxyServer struct {
 	httpServer  *http.Server
 	httpsServer *http.Server
 	started     bool
-	mx          sync.Mutex
+	mx          SpinLock
 }
 
 var proxyTransport http.Transport = http.Transport{

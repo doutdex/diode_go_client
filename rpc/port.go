@@ -5,7 +5,6 @@ package rpc
 
 import (
 	"math/rand"
-	"sync"
 	"time"
 )
 
@@ -18,7 +17,7 @@ const (
 // Note: we don't validate port is really used on machine
 type PortService struct {
 	used map[int]bool
-	rm   sync.Mutex
+	rm   SpinLock
 }
 
 // NewPortService initialize PortService

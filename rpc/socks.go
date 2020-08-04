@@ -74,7 +74,7 @@ type Server struct {
 	listener net.Listener
 	udpconn  net.PacketConn
 	wg       *sync.WaitGroup
-	rm       sync.Mutex
+	rm       SpinLock
 	started  bool
 	binds    []Bind
 }

@@ -21,8 +21,9 @@ import (
 )
 
 var (
-	RequestID           uint64 = 0
-	mx                  sync.Mutex
+	RequestID uint64 = 0
+	// mx                  SpinLock
+	mx                  SpinLock
 	errEmptyDNSresult   = fmt.Errorf("couldn't resolve name (null)")
 	errRPCClientClosed  = fmt.Errorf("rpc client was closed")
 	DefaultRegistryAddr = [20]byte{80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
@@ -55,7 +56,7 @@ type RPCClient struct {
 	ticketTickerDuration  time.Duration
 	timeout               time.Duration
 	wg                    sync.WaitGroup
-	rm                    sync.Mutex
+	rm                    SpinLock
 	pool                  *DataPool
 	signal                chan Signal
 	edgeProtocol          edge.EdgeProtocol
@@ -406,7 +407,7 @@ func (rpcClient *RPCClient) GetBlockHeadersUnsafe2(blockNumbers []uint64) ([]*bl
 	count := len(blockNumbers)
 	responses := make(map[uint64]*blockquick.BlockHeader)
 	headers := make([]*blockquick.BlockHeader, 0)
-	mx := sync.Mutex{}
+	mx := SpinLock{}
 	wg := sync.WaitGroup{}
 	wg.Add(count)
 	for _, i := range blockNumbers {
