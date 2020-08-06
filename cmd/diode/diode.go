@@ -133,8 +133,6 @@ func diode() (status int) {
 			}
 		}
 	}
-	lvbn, lvbh := rpc.LastValid()
-	printLabel("Last valid block", fmt.Sprintf("%v %v", lvbn, util.EncodeToString(lvbh[:])))
 	printLabel("Client address", cfg.ClientAddr.HexString())
 	printLabel("Fleet address", cfg.FleetAddr.HexString())
 
@@ -151,12 +149,15 @@ func diode() (status int) {
 	for _, RemoteRPCAddr := range cfg.RemoteRPCAddrs {
 		go connect(c, RemoteRPCAddr, cfg, wg, pool)
 	}
+	var lvbn uint64
+	var lvbh crypto.Sha3
 
-	// var client *rpc.RPCClient
 	var client *rpc.RPCClient
 	go func() {
 		for rpcClient := range c {
 			if client == nil && rpcClient != nil {
+				// lvbn, lvbh = rpcClient.LastValid()
+				// printLabel("Last valid block", fmt.Sprintf("%v %v", lvbn, util.EncodeToString(lvbh[:])))
 				cfg.Logger.Info(fmt.Sprintf("Connected to host: %s, validating...", rpcClient.Host()))
 				isValid, err := rpcClient.ValidateNetwork()
 				if isValid {
@@ -183,8 +184,8 @@ func diode() (status int) {
 		status = 129
 		return
 	}
-	lvbn, lvbh = rpc.LastValid()
-	cfg.Logger.Info(fmt.Sprintf("Network is validated, last valid block number: %d", lvbn))
+	lvbn, lvbh = client.LastValid()
+	cfg.Logger.Info(fmt.Sprintf("Network is validated, last valid block: %d 0x%x", lvbn, lvbh))
 
 	if cfg.Command == "reset" {
 		if cfg.Experimental {
@@ -648,14 +649,14 @@ func doBNS(cfg *config.Config, client *rpc.RPCClient) (status int) {
 	printLabel("Register bns: ", fmt.Sprintf("%s=%s", bnsName, bnsAddr.HexString()))
 	printInfo("Waiting for block to be confirmed - expect to wait 5 minutes")
 	for i := 0; i < 6000; i++ {
-		bn, _ = rpc.LastValid()
+		bn, _ = client.LastValid()
 		current, err := client.ResolveBNS(bnsName)
 		if err == nil && current == bnsAddr {
 			printInfo("Registered bns successfully")
 			return
 		}
 		for {
-			bn2, _ := rpc.LastValid()
+			bn2, _ := client.LastValid()
 			if bn != bn2 {
 				break
 			}
@@ -679,7 +680,7 @@ func doBNS(cfg *config.Config, client *rpc.RPCClient) (status int) {
 }
 
 func doTime(cfg *config.Config, client *rpc.RPCClient) int {
-	blocknr, _ := rpc.LastValid()
+	blocknr, _ := client.LastValid()
 	header := client.GetBlockHeaderValid(blocknr)
 	if header == nil {
 		printError("Time retrieval error: ", fmt.Errorf("can't load last valid block %d", blocknr))
@@ -756,13 +757,13 @@ func watchAccount(client *rpc.RPCClient, to util.Address) (res bool) {
 	var oact *edge.Account
 	var getTimes int
 	var isConfirmed bool
-	startBN, _ = rpc.LastValid()
+	startBN, _ = client.LastValid()
 	bn = startBN
 	oact, _ = client.GetValidAccount(uint64(bn), to)
 	for {
 		<-time.After(15 * time.Second)
 		var nbn uint64
-		nbn, _ = rpc.LastValid()
+		nbn, _ = client.LastValid()
 		if nbn == bn {
 			printInfo("Waiting for next valid block...")
 			continue
