@@ -116,7 +116,6 @@ func clientDebugHandler(cmd *cobra.Command, args []string) (err error) {
 }
 
 func init() {
-	// parseFlag()
 	clientDebugCmd.PersistentFlags().StringVarP(&cfg.Target, "target", "a", "http://pi-taipei.diode", "test target")
 	clientDebugCmd.PersistentFlags().BoolVarP(&cfg.EnableTransport, "transport", "b", true, "enable http transport")
 	clientDebugCmd.PersistentFlags().IntVarP(&cfg.Conn, "conn", "c", 100, "total connection concurrently")
@@ -133,7 +132,7 @@ func init() {
 	clientDebugCmd.PersistentFlags().IntVarP(&cfg.RlimitNofile, "rlimit_nofile", "r", 0, "specify the file descriptor numbers that can be opened by this process")
 }
 
-// Execute the diode command
+// Execute the client_debug command
 func Execute() error {
 	return clientDebugCmd.Execute()
 }
