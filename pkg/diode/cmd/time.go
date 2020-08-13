@@ -6,14 +6,14 @@ package cmd
 import (
 	"fmt"
 	"github.com/spf13/cobra"
-	// "github.com/diodechain/diode_go_client/config"
+	// "github.com/diodechain/diode_go_client/pkg/diode/config"
 	// "io/ioutil"
 	// "log"
 	// "net"
 	// "net/http"
 	// "net/url"
 	// "sync"
-	"github.com/diodechain/diode_go_client/rpc"
+	"github.com/diodechain/diode_go_client/pkg/diode/rpc"
 	"time"
 )
 

@@ -19,12 +19,12 @@ import (
 	// "strings"
 	// "gopkg.in/yaml.v2"
 
-	"github.com/diodechain/diode_go_client/config"
-	"github.com/diodechain/diode_go_client/crypto"
-	"github.com/diodechain/diode_go_client/db"
-	"github.com/diodechain/diode_go_client/edge"
-	"github.com/diodechain/diode_go_client/rpc"
-	"github.com/diodechain/diode_go_client/util"
+	"github.com/diodechain/diode_go_client/pkg/diode/config"
+	"github.com/diodechain/diode_go_client/pkg/diode/crypto"
+	"github.com/diodechain/diode_go_client/pkg/diode/db"
+	"github.com/diodechain/diode_go_client/pkg/diode/edge"
+	"github.com/diodechain/diode_go_client/pkg/diode/rpc"
+	"github.com/diodechain/diode_go_client/pkg/diode/util"
 	"github.com/diodechain/log15"
 	log "github.com/diodechain/log15"
 	"github.com/spf13/cobra"
@@ -131,6 +131,7 @@ func init() {
 	diodeCmd.AddCommand(updateCmd)
 	diodeCmd.AddCommand(timeCmd)
 	diodeCmd.AddCommand(resetCmd)
+	diodeCmd.AddCommand(bnsCmd)
 }
 
 func prepareDiodeApp(cmd *cobra.Command, args []string) {
@@ -164,6 +165,7 @@ func newLogger(cfg *config.Config) log.Logger {
 	return logger
 }
 
+// initConfig load file config
 func initConfig() {}
 
 func printLabel(label string, value string) {
@@ -264,7 +266,6 @@ func (dio *Diode) Init() error {
 	printLabel("Diode Client version", fmt.Sprintf("%s %s", version, buildTime))
 
 	// Initialize db
-	fmt.Println(AppConfig.DBPath, AppConfig.Debug, AppConfig.RemoteRPCAddrs)
 	clidb, err := db.OpenFile(cfg.DBPath)
 	if err != nil {
 		printError("Couldn't open database", err)

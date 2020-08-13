@@ -14,8 +14,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/diodechain/diode_go_client/config"
-	"github.com/diodechain/diode_go_client/util"
+	"github.com/diodechain/diode_go_client/pkg/diode/config"
+	"github.com/diodechain/diode_go_client/pkg/diode/util"
 	"github.com/go-playground/validator"
 	"github.com/rs/cors"
 )

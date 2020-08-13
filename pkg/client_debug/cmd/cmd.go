@@ -6,8 +6,6 @@ package cmd
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/diodechain/diode_go_client/config"
-	"github.com/spf13/cobra"
 	"io/ioutil"
 	"log"
 	"net"
@@ -15,6 +13,9 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/diodechain/diode_go_client/pkg/diode/config"
+	"github.com/spf13/cobra"
 )
 
 var (
