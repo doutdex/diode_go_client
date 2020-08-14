@@ -37,6 +37,11 @@ func resetHandler(cmd *cobra.Command, args []string) (err error) {
 		return
 	}
 	var ret int
+	client := app.GetClientByOrder(1)
+	if client == nil {
+		err = ErrFailedToConnectServer
+		return
+	}
 	experimental := viper.GetBool("experimental")
 	if experimental {
 		ret = doInit(AppConfig, client)

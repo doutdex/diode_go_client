@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/diodechain/diode_go_client/pkg/diode/edge"
 	"github.com/diodechain/diode_go_client/pkg/diode/config"
+	"github.com/diodechain/diode_go_client/pkg/diode/edge"
 	"github.com/diodechain/go-cache"
 )
 

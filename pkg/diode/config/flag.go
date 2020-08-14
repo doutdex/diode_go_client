@@ -109,7 +109,7 @@ type Config struct {
 	Binds                   []Bind           `yaml:"-" json:"-"`
 	// BNSRegister             string           `yaml:"-" json:"-"`
 	// BNSLookup               string           `yaml:"-" json:"-"`
-	Experimental bool `yaml:"-" json:"-"`
+	// Experimental bool `yaml:"-" json:"-"`
 	LoadFromFile bool `yaml:"-" json:"-"`
 }
 
@@ -628,14 +628,14 @@ func (svs *stringValues) Set(value string) error {
 // 	// return cfg
 // }
 
-// func (cfg *Config) SocksServerAddr() string {
-// 	return fmt.Sprintf("%s:%d", cfg.SocksServerHost, cfg.SocksServerPort)
-// }
+func (cfg *Config) SocksServerAddr() string {
+	return fmt.Sprintf("%s:%d", cfg.SocksServerHost, cfg.SocksServerPort)
+}
 
-// func (cfg *Config) ProxyServerAddr() string {
-// 	return fmt.Sprintf("%s:%d", cfg.ProxyServerHost, cfg.ProxyServerPort)
-// }
+func (cfg *Config) ProxyServerAddr() string {
+	return fmt.Sprintf("%s:%d", cfg.ProxyServerHost, cfg.ProxyServerPort)
+}
 
-// func (cfg *Config) SProxyServerAddr() string {
-// 	return fmt.Sprintf("%s:%d", cfg.SProxyServerHost, cfg.SProxyServerPort)
-// }
+func (cfg *Config) SProxyServerAddr() string {
+	return fmt.Sprintf("%s:%d", cfg.SProxyServerHost, cfg.SProxyServerPort)
+}

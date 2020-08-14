@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/diodechain/diode_go_client/pkg/diode/blockquick"
-	"github.com/diodechain/diode_go_client/pkg/diode/config"
 	"github.com/diodechain/diode_go_client/pkg/diode/contract"
 	"github.com/diodechain/diode_go_client/pkg/diode/db"
 	"github.com/diodechain/diode_go_client/pkg/diode/edge"
@@ -35,6 +34,7 @@ type RPCConfig struct {
 	FleetAddr    Address
 	Blocklists   map[Address]bool
 	Allowlists   map[Address]bool
+	RetryTimes   int
 }
 
 // RPCClient struct for rpc client
@@ -60,6 +60,7 @@ type RPCClient struct {
 	edgeProtocol          edge.EdgeProtocol
 	Config                *RPCConfig
 	bq                    *blockquick.Window
+	Order                 int
 }
 
 func getRequestID() uint64 {
@@ -836,8 +837,8 @@ func (rpcClient *RPCClient) IsDeviceAllowlisted(fleetAddr Address, clientAddr Ad
 // Reconnect to diode node
 func (rpcClient *RPCClient) Reconnect() bool {
 	isOk := false
-	for i := 1; i <= config.AppConfig.RetryTimes; i++ {
-		rpcClient.Info("Retry to connect to %s (%d/%d)", rpcClient.s.addr, i, config.AppConfig.RetryTimes)
+	for i := 1; i <= rpcClient.Config.RetryTimes; i++ {
+		rpcClient.Info("Retry to connect to %s (%d/%d)", rpcClient.s.addr, i, rpcClient.Config.RetryTimes)
 		if rpcClient.s.Closed() {
 			break
 		}

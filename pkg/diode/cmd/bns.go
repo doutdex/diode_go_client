@@ -12,7 +12,6 @@ import (
 	"github.com/diodechain/diode_go_client/pkg/diode/edge"
 	"github.com/diodechain/diode_go_client/pkg/diode/util"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -20,20 +19,32 @@ var (
 		Use:   "bns",
 		Short: "Register/Update name service on diode blockchain.",
 		Long:  "Register/Update name service on diode blockchain.",
-		RunE:  bnsHandler,
 	}
-	// ErrFailedToResetClient = fmt.Errorf("failed to reset diode client")
+	lookupBNSCmd = &cobra.Command{
+		Use:   "lookup",
+		Short: "Lookup a given BNS name.",
+		Long:  "Lookup a given BNS name.",
+		RunE:  lookupBNSHandler,
+	}
+	registerBNSCmd = &cobra.Command{
+		Use:   "register [key1] [key2]",
+		Short: "Register a new BNS name with <name>=<address>.",
+		Long:  "Register a new BNS name with <name>=<address>.",
+		Args:  cobra.MinimumNArgs(1),
+		RunE:  registerBNSHandler,
+	}
 )
 
 func init() {
-	bnsCmd.Flags().String("lookup", "", "Lookup a given BNS name.")
-	viper.BindPFlag("lookup", bnsCmd.Flags().Lookup("lookup"))
-	bnsCmd.Flags().String("register", "", "Register a new BNS name with <name>=<address>.")
-	viper.BindPFlag("register", bnsCmd.Flags().Lookup("register"))
+	bnsCmd.AddCommand(lookupBNSCmd)
+	bnsCmd.AddCommand(registerBNSCmd)
+	// bnsCmd.Flags().String("lookup", "", "Lookup a given BNS name.")
+	// viper.BindPFlag("lookup", bnsCmd.Flags().Lookup("lookup"))
+	// bnsCmd.Flags().String("register", "", "Register a new BNS name with <name>=<address>.")
+	// viper.BindPFlag("register", bnsCmd.Flags().Lookup("register"))
 }
 
 func isValidBNS(name string) (isValid bool) {
-	fmt.Println(name)
 	if len(name) < 7 || len(name) > 32 {
 		isValid = false
 		return
@@ -42,9 +53,49 @@ func isValidBNS(name string) (isValid bool) {
 	return
 }
 
-func bnsHandler(cmd *cobra.Command, args []string) (err error) {
+func lookupBNSHandler(cmd *cobra.Command, args []string) (err error) {
 	err = app.Start()
 	if err != nil {
+		return
+	}
+	client := app.GetClientByOrder(1)
+	if client == nil {
+		err = ErrFailedToConnectServer
+		return
+	}
+	// register bns record
+	bn, _ := client.GetBlockPeak()
+	if bn == 0 {
+		printError("Cannot find block peak: ", fmt.Errorf("not found"))
+		return
+	}
+	lookupName := args[0]
+	if !isValidBNS(lookupName) {
+		printError("Argument Error: ", fmt.Errorf("BNS name should be more than 7 or less than 32 characters (0-9A-Za-z-)"))
+		return
+	}
+	var obnsAddr util.Address
+	if len(lookupName) > 0 {
+		obnsAddr, err = client.ResolveBNS(lookupName)
+		if err != nil {
+			printError("Lookup error: ", err)
+			return
+
+		}
+		printLabel("Lookup result: ", fmt.Sprintf("%s=0x%s", lookupName, obnsAddr.Hex()))
+		return
+	}
+	return
+}
+
+func registerBNSHandler(cmd *cobra.Command, args []string) (err error) {
+	err = app.Start()
+	if err != nil {
+		return
+	}
+	client := app.GetClientByOrder(1)
+	if client == nil {
+		err = ErrFailedToConnectServer
 		return
 	}
 	// register bns record
@@ -62,24 +113,12 @@ func bnsHandler(cmd *cobra.Command, args []string) (err error) {
 		printError("Cannot create dns contract instance: ", err)
 		return
 	}
-	registerFlag := viper.GetString("register")
-	registerPair := strings.Split(registerFlag, "=")
-	lookupName := viper.GetString("lookup")
+	registerPair := strings.Split(args[0], "=")
 
 	var obnsAddr util.Address
-	if len(lookupName) > 0 {
-		obnsAddr, err = client.ResolveBNS(lookupName)
-		if err != nil {
-			printError("Lookup error: ", err)
-			return
 
-		}
-		printLabel("Lookup result: ", fmt.Sprintf("%s=0x%s", lookupName, obnsAddr.Hex()))
-		return
-	}
-
-	if (len(registerPair) == 0 || len(registerPair) > 2) && len(lookupName) == 0 {
-		printError("Argument Error: ", fmt.Errorf("provide -register <name>=<address> or -lookup <name> argument"))
+	if len(registerPair) == 0 || len(registerPair) > 2 {
+		printError("Argument Error: ", fmt.Errorf("provide register <name>=<address>"))
 		return
 	}
 	bnsName := registerPair[0]

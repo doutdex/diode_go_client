@@ -402,6 +402,7 @@ func DoConnect(host string, config *config.Config, pool *DataPool) (*RPCClient, 
 		FleetAddr:    config.FleetAddr,
 		Blocklists:   config.Blocklists,
 		Allowlists:   config.Allowlists,
+		RetryTimes:   config.RetryTimes,
 	}
 	rpcClient := NewRPCClient(client, rpcConfig, pool)
 

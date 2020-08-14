@@ -11,11 +11,11 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/kierdavis/ansi"
-	"github.com/spf13/cobra"
 	"github.com/diodechain/go-update"
 	"github.com/diodechain/go-update/progress"
 	"github.com/diodechain/go-update/stores/github"
+	"github.com/kierdavis/ansi"
+	"github.com/spf13/cobra"
 )
 
 var (

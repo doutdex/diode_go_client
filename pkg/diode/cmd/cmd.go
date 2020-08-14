@@ -7,10 +7,13 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/signal"
 	"regexp"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	// "net"
@@ -60,12 +63,8 @@ Run 'diode COMMAND --help' for more information on a command.
 	errWrongDiodeAddrs         = fmt.Errorf("wrong remote diode addresses")
 	errConfigNotLoadedFromFile = fmt.Errorf("config wasn't loaded from file")
 	// ======
-	version     string = "development"
-	buildTime   string
-	socksServer *rpc.Server
-	proxyServer *rpc.ProxyServer
-	// configAPIServer *ConfigAPIServer
-	pool       *rpc.DataPool
+	version    string = "development"
+	buildTime  string
 	bnsPattern = regexp.MustCompile(`^[0-9A-Za-z-]+$`)
 	// ======
 	// === copy from flag
@@ -76,16 +75,18 @@ Run 'diode COMMAND --help' for more information on a command.
 		PersistentPreRun:  prepareDiodeApp,
 		PersistentPostRun: closeDiodeApp,
 	}
-	app Diode
+	app              Diode
+	emptyStringSlice []string
 	// main client, should remove
-	client  *rpc.RPCClient
-	clients map[util.Address]*rpc.RPCClient
+	// client *rpc.RPCClient
+	// pool       *rpc.DataPool
+	// clients map[util.Address]*rpc.RPCClient
 )
 
 func init() {
 	// setup flag
 	cobra.OnInitialize(initConfig)
-	var cfg = &config.Config{}
+	cfg := &config.Config{}
 	diodeCmd.PersistentFlags().StringVar(&cfg.DBPath, "dbpath", util.DefaultDBPath(), "file path to db file")
 	diodeCmd.PersistentFlags().IntVar(&cfg.RetryTimes, "retrytimes", 3, "retry times to connect the remote rpc server")
 	diodeCmd.PersistentFlags().BoolVar(&cfg.EnableEdgeE2E, "e2e", false, "enable edge e2e when start diode")
@@ -115,9 +116,9 @@ func init() {
 	// remoteRPCTimeout := diodeCmd.PersistentFlags().Int("timeout", 5, "timeout seconds to connect to the remote rpc server")
 	// retryWait := diodeCmd.PersistentFlags().Int("retrywait", 1, "wait seconds before next retry")
 	diodeCmd.PersistentFlags().StringSliceVar(&cfg.RemoteRPCAddrs, "diodeaddrs", bootDiodeAddrs, "addresses of Diode node server (default: asia.testnet.diode.io:41046, europe.testnet.diode.io:41046, usa.testnet.diode.io:41046)")
-	// diodeCmd.PersistentFlags().StringSliceVar(&cfg.SBlocklists, "blocklists", "addresses are not allowed to connect to published resource (worked when allowlists is empty)")
-	// diodeCmd.PersistentFlags().StringSliceVar(&cfg.SAllowlists, "allowlists", "addresses are allowed to connect to published resource (worked when blocklists is empty)")
-	// diodeCmd.PersistentFlags().StringSliceVar(&cfg.SBinds, "bind", "bind a remote port to a local port. -bind <local_port>:<to_address>:<to_port>:(udp|tcp)")
+	diodeCmd.PersistentFlags().StringSliceVar(&cfg.SBlocklists, "blocklists", emptyStringSlice, "addresses are not allowed to connect to published resource (worked when allowlists is empty)")
+	diodeCmd.PersistentFlags().StringSliceVar(&cfg.SAllowlists, "allowlists", emptyStringSlice, "addresses are allowed to connect to published resource (worked when blocklists is empty)")
+	diodeCmd.PersistentFlags().StringSliceVar(&cfg.SBinds, "bind", emptyStringSlice, "bind a remote port to a local port. -bind <local_port>:<to_address>:<to_port>:(udp|tcp)")
 	if len(cfg.LogFilePath) > 0 {
 		// TODO: logrotate?
 		cfg.LogMode = LogToFile
@@ -132,10 +133,15 @@ func init() {
 	diodeCmd.AddCommand(timeCmd)
 	diodeCmd.AddCommand(resetCmd)
 	diodeCmd.AddCommand(bnsCmd)
+	diodeCmd.AddCommand(publishCmd)
+	diodeCmd.AddCommand(socksdCmd)
 }
 
 func prepareDiodeApp(cmd *cobra.Command, args []string) {
-	app = NewDiode(AppConfig, pool, clients)
+	pool := rpc.NewPool()
+	// clientpool := make(map[util.Address]*rpc.RPCClient, len(AppConfig.RemoteRPCAddrs))
+	clientpool := make(map[util.Address]*rpc.RPCClient)
+	app = NewDiode(AppConfig, pool, clientpool)
 	err := app.Init()
 	if err != nil {
 		return
@@ -241,18 +247,21 @@ func watchAccount(client *rpc.RPCClient, to util.Address) (res bool) {
 
 // Diode represents didoe application
 type Diode struct {
-	config     *config.Config
-	clientPool map[util.Address]*rpc.RPCClient
-	datapool   *rpc.DataPool
-	started    bool
-	mx         sync.Mutex
+	config          *config.Config
+	clientpool      map[util.Address]*rpc.RPCClient
+	datapool        *rpc.DataPool
+	socksServer     *rpc.Server
+	proxyServer     *rpc.ProxyServer
+	configAPIServer *ConfigAPIServer
+	started         bool
+	mx              sync.Mutex
 }
 
 // NewDiode return diode application
-func NewDiode(cfg *config.Config, datapool *rpc.DataPool, pool map[util.Address]*rpc.RPCClient) Diode {
+func NewDiode(cfg *config.Config, datapool *rpc.DataPool, clientpool map[util.Address]*rpc.RPCClient) Diode {
 	return Diode{
 		config:     cfg,
-		clientPool: pool,
+		clientpool: clientpool,
 		datapool:   datapool,
 	}
 }
@@ -261,7 +270,6 @@ func NewDiode(cfg *config.Config, datapool *rpc.DataPool, pool map[util.Address]
 func (dio *Diode) Init() error {
 	// Connect to first server to respond, and keep the other connections opened
 	cfg := dio.config
-	pool = rpc.NewPool()
 
 	printLabel("Diode Client version", fmt.Sprintf("%s %s", version, buildTime))
 
@@ -361,30 +369,33 @@ func (dio *Diode) Start() error {
 	c := make(chan *rpc.RPCClient, rpcAddrLen)
 	wg.Add(1)
 	for _, RemoteRPCAddr := range cfg.RemoteRPCAddrs {
-		go connect(c, RemoteRPCAddr, cfg, wg, pool)
+		go connect(c, RemoteRPCAddr, cfg, wg, dio.datapool)
 	}
 	var lvbn uint64
 	var lvbh crypto.Sha3
+	var client *rpc.RPCClient
 
-	clientPool := make(map[util.Address]*rpc.RPCClient)
 	go func() {
+		order := 1
 		for rpcClient := range c {
 			// lvbn, lvbh = rpcClient.LastValid()
 			// printLabel("Last valid block", fmt.Sprintf("%v %v", lvbn, util.EncodeToString(lvbh[:])))
 			cfg.Logger.Info(fmt.Sprintf("Connected to host: %s, validating...", rpcClient.Host()))
 			isValid, err := rpcClient.ValidateNetwork()
 			if isValid {
-				if client == nil {
-					client = rpcClient
-					wg.Done()
-				}
 				serverID, err := rpcClient.GetServerID()
 				if err != nil {
 					cfg.Logger.Warn("Failed to get server id: %v", err)
 					rpcClient.Close()
 					continue
 				}
-				clientPool[serverID] = rpcClient
+				rpcClient.Order = order
+				order++
+				dio.clientpool[serverID] = rpcClient
+				if client == nil {
+					client = rpcClient
+					wg.Done()
+				}
 			} else {
 				if err != nil {
 					cfg.Logger.Error(fmt.Sprintf("Network is not valid (err: %s), trying next...", err.Error()))
@@ -398,7 +409,6 @@ func (dio *Diode) Start() error {
 		wg.Done()
 	}()
 	wg.Wait()
-	dio.clientPool = clientPool
 
 	if client == nil {
 		err := fmt.Errorf("server are not validated")
@@ -411,6 +421,68 @@ func (dio *Diode) Start() error {
 	return nil
 }
 
+// SetSocksServer set socks server of diode application
+// TODO: close unused socks server?
+func (dio *Diode) SetSocksServer(socksServer *rpc.Server) {
+	dio.socksServer = socksServer
+}
+
+// SetProxyServer set proxy server of diode application
+// TODO: close unused proxy server?
+func (dio *Diode) SetProxyServer(proxyServer *rpc.ProxyServer) {
+	dio.proxyServer = proxyServer
+}
+
+// PublishPorts publish local resource to diode network
+func (dio *Diode) PublishPorts() {
+	cfg := AppConfig
+	if len(cfg.PublishedPorts) > 0 {
+		printInfo("")
+		dio.datapool.SetPublishedPorts(cfg.PublishedPorts)
+		for _, port := range cfg.PublishedPorts {
+			if port.To == 80 {
+				if port.Mode == config.PublicPublishedMode {
+					printLabel("Http Gateway Enabled", fmt.Sprintf("http://%s.diode.link/", cfg.ClientAddr.HexString()))
+				}
+				break
+			}
+		}
+		printLabel("Port      <name>", "<extern>     <mode>    <protocol>     <allowlist>")
+		for _, port := range cfg.PublishedPorts {
+			addrs := make([]string, 0, len(port.Allowlist))
+			for addr := range port.Allowlist {
+				addrs = append(addrs, addr.HexString())
+			}
+
+			printLabel(fmt.Sprintf("Port      %5d", port.Src), fmt.Sprintf("%8d  %10s       %s        %s", port.To, config.ModeName(port.Mode), config.ProtocolName(port.Protocol), strings.Join(addrs, ",")))
+		}
+	}
+}
+
+// Wait till user signal int to diode application
+func (dio *Diode) Wait() {
+	// listen to signal
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT)
+	sig := <-sigChan
+	switch sig {
+	case syscall.SIGINT:
+		break
+	}
+	return
+}
+
+// GetClientByOrder returns client by given order (1 is the nearest node)
+func (dio *Diode) GetClientByOrder(order int) (client *rpc.RPCClient) {
+	for _, client = range dio.clientpool {
+		if client.Order == order {
+			return
+		}
+	}
+	client = nil
+	return
+}
+
 // Started returns the whether diode application has been started
 func (dio *Diode) Started() bool {
 	dio.mx.Lock()
@@ -420,31 +492,31 @@ func (dio *Diode) Started() bool {
 
 // Close shut down diode application
 func (dio *Diode) Close() {
-	fmt.Println("1/7 Stopping client")
-	// client.Close()
-	for _, cc := range dio.clientPool {
+	printInfo("1/6 Stopping clients")
+	for _, cc := range dio.clientpool {
 		cc.Close()
 	}
-	fmt.Println("2/7 Stopping socksserver")
-	// socksServer.Close()
-	fmt.Println("3/7 Stopping proxyserver")
-	// if proxyServer != nil {
-	// 	proxyServer.Close()
-	// }
-	// fmt.Println("4/7 Stopping configserver")
-	// if configAPIServer != nil {
-	// 	configAPIServer.Close()
-	// }
-	fmt.Println("5/7 Cleaning pool")
-	if pool != nil {
-		pool.Close()
+	printInfo("2/6 Stopping socksserver")
+	if dio.socksServer != nil {
+		dio.socksServer.Close()
 	}
-	fmt.Println("6/7 Closing logs")
-	handler := AppConfig.Logger.GetHandler()
+	printInfo("3/6 Stopping proxyserver")
+	if dio.proxyServer != nil {
+		dio.proxyServer.Close()
+	}
+	printInfo("4/6 Stopping configserver")
+	if dio.configAPIServer != nil {
+		dio.configAPIServer.Close()
+	}
+	printInfo("5/6 Cleaning pool")
+	if dio.datapool != nil {
+		dio.datapool.Close()
+	}
+	printInfo(fmt.Sprintf("6/6 Closing logs"))
+	handler := dio.config.Logger.GetHandler()
 	if closingHandler, ok := handler.(log15.ClosingHandler); ok {
 		closingHandler.WriteCloser.Close()
 	}
-	fmt.Println("7/7 Exiting")
 }
 
 // Execute the diode command

@@ -24,12 +24,18 @@ var (
 		Long:  "Lookup the current time from the blockchain consensus.",
 		RunE:  timeHandler,
 	}
-	ErrFailedToFetchHeader = fmt.Errorf("can't load last valid block")
+	ErrFailedToFetchHeader   = fmt.Errorf("can't load last valid block")
+	ErrFailedToConnectServer = fmt.Errorf("can't connect to server")
 )
 
 func timeHandler(cmd *cobra.Command, args []string) (err error) {
 	err = app.Start()
 	if err != nil {
+		return
+	}
+	client := app.GetClientByOrder(1)
+	if client == nil {
+		err = ErrFailedToConnectServer
 		return
 	}
 	blocknr, _ := client.LastValid()
