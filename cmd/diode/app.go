@@ -21,6 +21,7 @@ import (
 	"github.com/diodechain/diode_go_client/db"
 	"github.com/diodechain/diode_go_client/rpc"
 	"github.com/diodechain/diode_go_client/util"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -76,8 +77,6 @@ func init() {
 	} else {
 		cfg.LogMode = config.LogToConsole
 	}
-	// TODO: load config from file
-	// TODO: add commands
 	config.AppConfig = cfg
 	diodeCmd.AddSubCommand(bnsCmd)
 	diodeCmd.AddSubCommand(configCmd)
@@ -92,6 +91,17 @@ func prepareDiode() error {
 	cfg := config.AppConfig
 	// initialize logger
 	pool = rpc.NewPool()
+
+	// load file config
+	if len(cfg.ConfigFilePath) > 0 {
+		cfgByts, err := config.LoadConfigFromFile(cfg.ConfigFilePath)
+		if err == nil {
+			err = yaml.Unmarshal(cfgByts, cfg)
+			if err == nil {
+				cfg.LoadFromFile = true
+			}
+		}
+	}
 
 	logger, err := config.NewLogger(cfg)
 	if err != nil {
