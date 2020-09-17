@@ -44,7 +44,7 @@ func init() {
 	diodeCmd.Flag.IntVar(&cfg.RetryTimes, "retrytimes", 3, "retry times to connect the remote rpc server")
 	diodeCmd.Flag.BoolVar(&cfg.EnableEdgeE2E, "e2e", true, "enable edge e2e when start diode")
 	// should put to httpd or other command
-	// diodeCmd.Flag.BoolVar(&cfg.EnableUpdate, "update", false, "enable update when start diode")
+	diodeCmd.Flag.BoolVar(&cfg.EnableUpdate, "update", true, "enable update when start diode")
 	diodeCmd.Flag.BoolVar(&cfg.EnableMetrics, "metrics", false, "enable metrics stats")
 	diodeCmd.Flag.BoolVar(&cfg.Debug, "debug", false, "turn on debug mode")
 	diodeCmd.Flag.BoolVar(&cfg.EnableAPIServer, "api", false, "turn on the config api")
