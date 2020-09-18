@@ -12,6 +12,7 @@ import (
 	"runtime/pprof"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -283,12 +284,26 @@ func (dio *Diode) Start() error {
 	var lvbn uint64
 	var lvbh crypto.Sha3
 	var client *rpc.RPCClient
+	for _, RemoteRPCAddr := range cfg.RemoteRPCAddrs {
+		go connect(c, RemoteRPCAddr, cfg, dio.datapool)
+	}
 	// waiting for first client
+	total := int64(len(cfg.RemoteRPCAddrs))
 	wg.Add(1)
 	go func() {
 		for rpcClient := range c {
+			atomic.AddInt64(&total, -1)
+			if rpcClient == nil {
+				if total == 0 {
+					break
+				}
+				continue
+			}
 			if isPublished && client != nil {
 				rpcClient.Close()
+				if total == 0 {
+					break
+				}
 				continue
 			}
 			// lvbn, lvbh = rpcClient.LastValid()
@@ -300,6 +315,9 @@ func (dio *Diode) Start() error {
 				if err != nil {
 					cfg.Logger.Warn("Failed to get server id: %v", err)
 					rpcClient.Close()
+					if total == 0 {
+						break
+					}
 					continue
 				}
 				dio.datapool.SetClient(serverID, rpcClient)
@@ -318,16 +336,16 @@ func (dio *Diode) Start() error {
 				}
 				rpcClient.Close()
 			}
+			if total == 0 {
+				break
+			}
 		}
+		close(c)
 		// should end waiting if there is no valid client
 		if client == nil {
 			wg.Done()
 		}
 	}()
-	for _, RemoteRPCAddr := range cfg.RemoteRPCAddrs {
-		connect(c, RemoteRPCAddr, cfg, dio.datapool)
-	}
-	close(c)
 	wg.Wait()
 
 	if client == nil {
