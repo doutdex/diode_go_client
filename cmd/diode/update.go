@@ -2,8 +2,7 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
+	exec "golang.org/x/sys/execabs"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -62,8 +61,8 @@ func doUpdate() int {
 	// searching for binary in path
 	bin, err := exec.LookPath(m.Command)
 	if err != nil {
-		// just update local file
-		bin = os.Args[0]
+		cfg.PrintError("Couldn't find the file", err)
+		return 129
 	}
 
 	// find the real path of execute file if the file was symlink
